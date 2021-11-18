@@ -1,5 +1,6 @@
 from libc.stdint cimport uint64_t, int64_t, int32_t
 
+
 cdef extern from "murmurhash/MurmurHash3.h":
     void MurmurHash3_x86_32(void * key, uint64_t len, uint64_t seed, void* out) nogil
     void MurmurHash3_x86_128(void * key, int len, uint32_t seed, void* out) nogil
@@ -18,7 +19,6 @@ cdef uint32_t hash32(void* key, int length, uint32_t seed) nogil:
 
 cdef uint64_t hash64(void* key, int length, uint64_t seed) nogil:
     return MurmurHash64A(key, length, seed)
-
 
 cdef uint64_t real_hash64(void* key, int length, uint64_t seed) nogil:
     cdef uint64_t[2] out
@@ -40,23 +40,11 @@ cpdef int32_t hash(value, uint32_t seed=0):
     else:
         return hash_bytes(value, seed=seed)
 
-cpdef uint64_t hash64A(value, uint64_t seed=0):
-    if isinstance(value, unicode):
-        return hash_unicode64(value, seed=seed)
-    else:
-        return hash_bytes64(value, seed=seed)
-
 
 cpdef int32_t hash_unicode(unicode value, uint32_t seed=0):
     return hash_bytes(value.encode('utf8'), seed=seed)
 
-cpdef uint64_t hash_unicode64(unicode value, uint64_t seed=0):
-    return hash_bytes64(value.encode('utf8'), seed=seed)
 
 cpdef int32_t hash_bytes(bytes value, uint32_t seed=0):
     cdef char* chars = <char*>value
     return hash32(chars, len(value), seed)
-
-cpdef uint64_t hash_bytes64(bytes value, uint64_t seed=0):
-    cdef char* chars = <char*>value
-    return hash64(chars, len(value), seed)
