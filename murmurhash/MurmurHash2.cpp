@@ -23,27 +23,25 @@
 #if defined(_MSC_VER)
 
 #define BIG_CONSTANT(x) (x)
-#define FORCE_INLINE	__forceinline
 
 // Other compilers
 
 #else	// defined(_MSC_VER)
 
 #define BIG_CONSTANT(x) (x##LLU)
-#define FORCE_INLINE
 
 #endif // !defined(_MSC_VER)
-
+//
 //-----------------------------------------------------------------------------
 // Block read - on little-endian machines this is a single load,
 // while on big-endian or unknown machines the byte accesses should
 // still get optimized into the most efficient instruction.
-FORCE_INLINE uint32_t getblock2 ( const uint32_t * p, int i )
+static inline uint32_t getblock ( const uint32_t * p )
 {
 #if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-  return p[i];
+  return *p;
 #else
-  const uint8_t *c = (const uint8_t *)&p[i];
+  const uint8_t *c = (const uint8_t *)p;
   return (uint32_t)c[0] |
 	 (uint32_t)c[1] <<  8 |
 	 (uint32_t)c[2] << 16 |
@@ -51,12 +49,12 @@ FORCE_INLINE uint32_t getblock2 ( const uint32_t * p, int i )
 #endif
 }
 
-FORCE_INLINE uint64_t getblock2 ( const uint64_t * p, int i )
+static inline uint64_t getblock ( const uint64_t * p )
 {
 #if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
-  return p[i];
+  return *p;
 #else
-  const uint8_t *c = (const uint8_t *)&p[i];
+  const uint8_t *c = (const uint8_t *)p;
   return (uint64_t)c[0] |
 	 (uint64_t)c[1] <<  8 |
 	 (uint64_t)c[2] << 16 |
@@ -88,7 +86,7 @@ uint32_t MurmurHash2 ( const void * key, int len, uint32_t seed )
 
   while(len >= 4)
   {
-    uint32_t k = *(uint32_t*)data;
+    uint32_t k = getblock((const uint32_t *)data);
 
     k *= m;
     k ^= k >> r;
@@ -133,24 +131,25 @@ uint64_t MurmurHash64A ( const void * key, int len, uint64_t seed )
 {
   const uint64_t m = BIG_CONSTANT(0xc6a4a7935bd1e995);
   const int r = 47;
-  const int nblocks = len / 8;
 
   uint64_t h = seed ^ (len * m);
-  const uint8_t * data = (const uint8_t*)key;
 
-  const uint64_t * blocks = (const uint64_t *)(data);
-  for(int i = 0; i < nblocks; i++)
+  const uint64_t * data = (const uint64_t *)key;
+  const uint64_t * end = data + (len/8);
+
+  while(data != end)
   {
-    uint64_t k = getblock2(blocks,i);
+    uint64_t k = getblock(data++);
+
     k *= m; 
     k ^= k >> r; 
     k *= m; 
-
+    
     h ^= k;
     h *= m; 
   }
 
-  const uint8_t * data2 = (const uint8_t*)(data + nblocks*8);
+  const unsigned char * data2 = (const unsigned char*)data;
 
   switch(len & 7)
   {
@@ -186,12 +185,12 @@ uint64_t MurmurHash64B ( const void * key, int len, uint64_t seed )
 
   while(len >= 8)
   {
-    uint32_t k1 = *data++;
+    uint32_t k1 = getblock(data++);
     k1 *= m; k1 ^= k1 >> r; k1 *= m;
     h1 *= m; h1 ^= k1;
     len -= 4;
 
-    uint32_t k2 = *data++;
+    uint32_t k2 = getblock(data++);
     k2 *= m; k2 ^= k2 >> r; k2 *= m;
     h2 *= m; h2 ^= k2;
     len -= 4;
@@ -199,7 +198,7 @@ uint64_t MurmurHash64B ( const void * key, int len, uint64_t seed )
 
   if(len >= 4)
   {
-    uint32_t k1 = *data++;
+    uint32_t k1 = getblock(data++);
     k1 *= m; k1 ^= k1 >> r; k1 *= m;
     h1 *= m; h1 ^= k1;
     len -= 4;
@@ -250,7 +249,7 @@ uint32_t MurmurHash2A ( const void * key, int len, uint32_t seed )
 
   while(len >= 4)
   {
-    uint32_t k = *(uint32_t*)data;
+    uint32_t k = getblock((const uint32_t *)data);
 
     mmix(h,k);
 
@@ -313,7 +312,7 @@ public:
 
     while(len >= 4)
     {
-      uint32_t k = *(uint32_t*)data;
+      uint32_t k = getblock((const uint32_t *)data);
 
       mmix(m_hash,k);
 
@@ -345,7 +344,7 @@ private:
   {
     while( len && ((len<4) || m_count) )
     {
-      m_tail |= (*data++) << (m_count * 8);
+      m_tail |= *data++ << (m_count * 8);
 
       m_count++;
       len--;
@@ -462,7 +461,7 @@ uint32_t MurmurHashAligned2 ( const void * key, int len, uint32_t seed )
 
     while(len >= 4)
     {
-      d = *(uint32_t *)data;
+      d = getblock((const uint32_t *)data);
       t = (t >> sr) | (d << sl);
 
       uint32_t k = t;
@@ -527,7 +526,7 @@ uint32_t MurmurHashAligned2 ( const void * key, int len, uint32_t seed )
   {
     while(len >= 4)
     {
-      uint32_t k = *(uint32_t *)data;
+      uint32_t k = getblock((const uint32_t *)data);
 
       MIX(h,k,m);
 
@@ -555,4 +554,3 @@ uint32_t MurmurHashAligned2 ( const void * key, int len, uint32_t seed )
 }
 
 //-----------------------------------------------------------------------------
-
