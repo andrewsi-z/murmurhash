@@ -30,66 +30,42 @@
 #else	// defined(_MSC_VER)
 
 #define BIG_CONSTANT(x) (x##LLU)
-
 #define FORCE_INLINE
 
 #endif // !defined(_MSC_VER)
 
-/* Based on Murmurhash3 implementation to support consistent results on systems
-   with different byteorder */
-
-/* NO-OP for little-endian platforms */
-#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
-# if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#   define BYTESWAP32(x) (x)
-#   define BYTESWAP64(x) (x)
-# endif
-/* if __BYTE_ORDER__ is not predefined (like FreeBSD), use arch */
-#elif defined(__i386)  || defined(__x86_64) \
-  ||  defined(__alpha) || defined(__vax)
-
-# define BYTESWAP32(x) (x)
-# define BYTESWAP64(x) (x)
-/* use __builtin_bswap32 if available */
-#elif defined(__GNUC__) || defined(__clang__)
-# ifdef __has_builtin
-#    if __has_builtin(__builtin_bswap32)
-#       define BYTESWAP32(x) __builtin_bswap32(x)
-#    endif // __has_builtin(__builtin_bswap32)
-#    if __has_builtin(__builtin_bswap64)
-#       define BYTESWAP64(x) __builtin_bswap64(x)
-#    endif // __has_builtin(__builtin_bswap64)
-# endif // __has_builtin
-#endif // defined(__GNUC__) || defined(__clang__)
-/* last resort (big-endian w/o __builtin_bswap) */
-#ifndef BYTESWAP32
-# define BYTESWAP32(x)   ((((x)&0xFF)<<24) \
-         |(((x)>>24)&0xFF) \
-         |(((x)&0x0000FF00)<<8)    \
-         |(((x)&0x00FF0000)>>8)    )
-#endif
-#ifndef BYTESWAP64
-# define BYTESWAP64(x)                               \
-        (((uint64_t)(x) << 56) |                           \
-         (((uint64_t)(x) << 40) & 0X00FF000000000000ULL) | \
-         (((uint64_t)(x) << 24) & 0X0000FF0000000000ULL) | \
-         (((uint64_t)(x) << 8)  & 0X000000FF00000000ULL) | \
-         (((uint64_t)(x) >> 8)  & 0X00000000FF000000ULL) | \
-         (((uint64_t)(x) >> 24) & 0X0000000000FF0000ULL) | \
-         (((uint64_t)(x) >> 40) & 0X000000000000FF00ULL) | \
-         ((uint64_t)(x)  >> 56))
-#endif
-
 //-----------------------------------------------------------------------------
-// Block read - if your platform needs to do endian-swapping or can only
-// handle aligned reads, do the conversion here
-
-FORCE_INLINE uint32_t getblock2(const uint32_t * p, int i) {
-    return BYTESWAP32(p[i]);
+// Block read - on little-endian machines this is a single load,
+// while on big-endian or unknown machines the byte accesses should
+// still get optimized into the most efficient instruction.
+FORCE_INLINE uint32_t getblock2 ( const uint32_t * p, int i )
+{
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+  return p[i];
+#else
+  const uint8_t *c = (const uint8_t *)&p[i];
+  return (uint32_t)c[0] |
+	 (uint32_t)c[1] <<  8 |
+	 (uint32_t)c[2] << 16 |
+	 (uint32_t)c[3] << 24;
+#endif
 }
 
-FORCE_INLINE uint64_t getblock2(const uint64_t * p, int i) {
-    return BYTESWAP64(p[i]);
+FORCE_INLINE uint64_t getblock2 ( const uint64_t * p, int i )
+{
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+  return p[i];
+#else
+  const uint8_t *c = (const uint8_t *)&p[i];
+  return (uint64_t)c[0] |
+	 (uint64_t)c[1] <<  8 |
+	 (uint64_t)c[2] << 16 |
+	 (uint64_t)c[3] << 24 |
+	 (uint64_t)c[4] << 32 |
+	 (uint64_t)c[5] << 40 |
+	 (uint64_t)c[6] << 48 |
+	 (uint64_t)c[7] << 56;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -151,8 +127,6 @@ uint32_t MurmurHash2 ( const void * key, int len, uint32_t seed )
 // The same caveats as 32-bit MurmurHash2 apply here - beware of alignment 
 // and endian-ness issues if used across multiple platforms.
 
-// Adjusted to mirror endian neutral approach used in murmurhash3
-
 // 64-bit hash for 64-bit platforms
 
 uint64_t MurmurHash64A ( const void * key, int len, uint64_t seed )
@@ -196,6 +170,7 @@ uint64_t MurmurHash64A ( const void * key, int len, uint64_t seed )
 
   return h;
 } 
+
 
 // 64-bit hash for 32-bit platforms
 
@@ -249,7 +224,6 @@ uint64_t MurmurHash64B ( const void * key, int len, uint64_t seed )
 
   return h;
 } 
-
 
 //-----------------------------------------------------------------------------
 // MurmurHash2A, by Austin Appleby
